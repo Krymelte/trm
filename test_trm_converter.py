@@ -8,6 +8,7 @@ from trm_converter import (
     parse_trm_text,
     trm_file_to_json,
     trm_from_mapping,
+    read_text_with_fallback,
 )
 
 
@@ -57,3 +58,16 @@ def test_json_root_must_be_object(tmp_path: Path):
 
     with pytest.raises(ValueError):
         json_file_to_trm(json_path)
+
+
+def test_trm_reading_with_encoding_fallback(tmp_path: Path):
+    # Contains "¼" encoded as cp1252 to simulate Windows-encoded TRM files
+    content = "name = Café\nnote = ¼\n".encode("cp1252")
+    trm_path = tmp_path / "windows.trm"
+    trm_path.write_bytes(content)
+
+    parsed = trm_file_to_json(trm_path)
+    assert parsed == {"name": "Café", "note": "¼"}
+
+    # helper is exposed for completeness
+    assert read_text_with_fallback(trm_path).startswith("name = Café")

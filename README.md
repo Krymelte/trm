@@ -1,6 +1,8 @@
 # TRM Converter
 
-Dieses kleine Werkzeug wandelt einfache TRM-Dateien in JSON um und wieder zurück.
+Dieses kleine Werkzeug wandelt einfache TRM-Dateien in JSON um und wieder zurück. Es
+versucht TRM-Dateien zuerst als UTF-8 zu lesen und fällt bei Bedarf automatisch auf
+Windows-1252/Latin-1 zurück.
 
 ## TRM-Format
 

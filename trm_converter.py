@@ -16,6 +16,24 @@ from pathlib import Path
 from typing import Dict
 
 
+def read_text_with_fallback(path: Path, encodings: tuple[str, ...] = ("utf-8", "cp1252", "latin-1")) -> str:
+    """Read text trying several encodings.
+
+    Tries each encoding in order and returns the first successful decode. Raises
+    the last UnicodeDecodeError if all attempts fail.
+    """
+
+    last_error: UnicodeDecodeError | None = None
+    for encoding in encodings:
+        try:
+            return path.read_text(encoding=encoding)
+        except UnicodeDecodeError as exc:  # pragma: no cover - exercised via fallback success
+            last_error = exc
+    if last_error:
+        raise last_error
+    raise UnicodeDecodeError("unknown", b"", 0, 1, "no encodings provided")
+
+
 def parse_trm_text(text: str) -> Dict[str, str]:
     """Parse TRM content into a dictionary.
 
@@ -43,7 +61,7 @@ def trm_from_mapping(mapping: Dict[str, str]) -> str:
 
 
 def trm_file_to_json(trm_path: Path) -> Dict[str, str]:
-    return parse_trm_text(trm_path.read_text(encoding="utf-8"))
+    return parse_trm_text(read_text_with_fallback(trm_path))
 
 
 def json_file_to_trm(json_path: Path) -> Dict[str, str]:
