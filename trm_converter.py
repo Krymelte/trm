@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Dict
 
@@ -115,14 +116,18 @@ def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "to-json":
-        data = trm_file_to_json(args.input)
-        write_json(data, args.output)
-    elif args.command == "to-trm":
-        data = json_file_to_trm(args.input)
-        write_trm(data, args.output)
-    else:
-        parser.error("Unknown command")
+    try:
+        if args.command == "to-json":
+            data = trm_file_to_json(args.input)
+            write_json(data, args.output)
+        elif args.command == "to-trm":
+            data = json_file_to_trm(args.input)
+            write_trm(data, args.output)
+        else:  # pragma: no cover - argparse enforces allowed commands
+            parser.error("Unknown command")
+    except (UnicodeDecodeError, OSError, ValueError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

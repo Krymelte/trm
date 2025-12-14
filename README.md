@@ -6,7 +6,9 @@ Windows-1252/Latin-1 zurück.
 
 > Hinweis: Das Tool unterstützt nur textbasierte TRM-Dateien nach dem unten
 > beschriebenen Schlüssel/Wert-Format. Binäre TRM-Dateien mit NUL-Bytes oder
-> proprietären Strukturen können nicht automatisch in JSON umgewandelt werden.
+> proprietären Strukturen können nicht automatisch in JSON umgewandelt werden;
+> in solchen Fällen beendet sich die CLI mit einer klaren Fehlermeldung ohne
+> Python-Traceback.
 
 ## TRM-Format
 

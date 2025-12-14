@@ -5,6 +5,7 @@ import pytest
 
 from trm_converter import (
     json_file_to_trm,
+    main,
     parse_trm_text,
     trm_file_to_json,
     trm_from_mapping,
@@ -88,3 +89,17 @@ def test_binary_file_gives_clear_error(tmp_path: Path):
 
     with pytest.raises(ValueError, match="binary"):
         trm_file_to_json(trm_path)
+
+
+def test_cli_exits_cleanly_on_binary_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    binary_bytes = b"\x00\x00\x00Easy/S01/SABO\x00\x00\x00"
+    trm_path = tmp_path / "binary.trm"
+    trm_path.write_bytes(binary_bytes)
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(["to-json", str(trm_path), str(tmp_path / "out.json")])
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "binary" in captured.err
