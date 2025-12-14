@@ -80,10 +80,45 @@ def parse_trm_text(text: str, *, allow_binary: bool = False) -> Dict[str, str]:
     return data
 
 
-def _binary_to_base64_dict(raw_bytes: bytes) -> Dict[str, str]:
-    """Wrap binary data in a JSON-friendly mapping."""
+def _extract_printable_segments(raw_bytes: bytes, *, min_length: int = 3) -> list[dict[str, int | str]]:
+    """Return human-friendly previews from a binary payload.
 
-    return {"__raw_binary_base64": base64.b64encode(raw_bytes).decode("ascii")}
+    The original bytes are also stored (base64-encoded) so we can always recreate
+    the exact content. Printable previews are only a hint to help users locate
+    embedded strings that might be worth editing or inspecting.
+    """
+
+    decoded = raw_bytes.decode("latin-1", errors="ignore")
+    segments: list[dict[str, int | str]] = []
+
+    current = ""
+    start = 0
+    for idx, ch in enumerate(decoded):
+        is_printable = 32 <= ord(ch) <= 126
+        if is_printable:
+            if not current:
+                start = idx
+            current += ch
+            continue
+        if len(current) >= min_length:
+            segments.append({"offset": start, "text": current})
+        current = ""
+    if len(current) >= min_length:
+        segments.append({"offset": start, "text": current})
+
+    return segments
+
+
+def _binary_to_base64_dict(raw_bytes: bytes) -> Dict[str, object]:
+    """Wrap binary data in a JSON-friendly mapping with preview strings."""
+
+    payload: Dict[str, object] = {
+        "__raw_binary_base64": base64.b64encode(raw_bytes).decode("ascii")
+    }
+    preview = _extract_printable_segments(raw_bytes)
+    if preview:
+        payload["__printable_preview"] = preview
+    return payload
 
 
 def trm_from_mapping(mapping: Dict[str, str]) -> str:
@@ -115,8 +150,6 @@ def json_file_to_trm(json_path: Path) -> Dict[str, str] | bytes:
         raise ValueError("JSON root must be an object mapping keys to values")
 
     if "__raw_binary_base64" in data:
-        if len(data) != 1:
-            raise ValueError("Binary JSON payload must only contain '__raw_binary_base64'")
         try:
             return base64.b64decode(data["__raw_binary_base64"], validate=True)
         except (ValueError, TypeError) as exc:

@@ -122,7 +122,8 @@ def test_allow_binary_base64_passthrough_when_not_parseable(tmp_path: Path):
     trm_path.write_bytes(binary_bytes)
 
     parsed = trm_file_to_json(trm_path, allow_binary=True)
-    assert parsed.keys() == {"__raw_binary_base64"}
+    assert parsed["__raw_binary_base64"]
+    assert parsed["__printable_preview"] == [{"offset": 3, "text": "Easy/S01/SABO"}]
     assert base64.b64decode(parsed["__raw_binary_base64"]) == binary_bytes
 
     json_path = tmp_path / "payload.json"
@@ -142,8 +143,24 @@ def test_cli_to_json_produces_base64_for_binary(tmp_path: Path):
     main(["to-json", "--allow-binary", str(trm_path), str(out_path)])
 
     content = json.loads(out_path.read_text(encoding="utf-8"))
-    assert content.keys() == {"__raw_binary_base64"}
+    assert content["__raw_binary_base64"]
     assert base64.b64decode(content["__raw_binary_base64"]) == binary_bytes
+
+
+def test_binary_preview_includes_printable_segments(tmp_path: Path):
+    # Embed two printable sequences separated by noise and NUL bytes
+    payload = b"\x00abc\x00\x01\x02\x03HELLO\x7f\x00"
+    trm_path = tmp_path / "binary.trm"
+    trm_path.write_bytes(payload)
+
+    parsed = trm_file_to_json(trm_path, allow_binary=True)
+
+    assert parsed["__raw_binary_base64"]
+    preview = parsed["__printable_preview"]
+    assert preview == [
+        {"offset": 1, "text": "abc"},
+        {"offset": 8, "text": "HELLO"},
+    ]
 
 
 def test_cli_to_trm_writes_binary_payload(tmp_path: Path):
