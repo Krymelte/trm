@@ -87,8 +87,18 @@ def test_binary_file_gives_clear_error(tmp_path: Path):
     trm_path = tmp_path / "binary.trm"
     trm_path.write_bytes(binary_bytes)
 
-    with pytest.raises(ValueError, match="binary"):
+    with pytest.raises(ValueError, match="allow-binary"):
         trm_file_to_json(trm_path)
+
+
+def test_allow_binary_strips_nuls_when_requested(tmp_path: Path):
+    trm_path = tmp_path / "semi_binary.trm"
+    trm_path.write_bytes(b"foo = bar\x00\n# comment with NUL\x00\nname = value\n")
+
+    parsed = trm_file_to_json(trm_path, allow_binary=True)
+
+    # NUL bytes are stripped, leaving the plain text pairs intact
+    assert parsed == {"foo": "bar", "name": "value"}
 
 
 def test_cli_exits_cleanly_on_binary_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
@@ -102,4 +112,4 @@ def test_cli_exits_cleanly_on_binary_file(tmp_path: Path, capsys: pytest.Capture
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "binary" in captured.err
+    assert "allow-binary" in captured.err

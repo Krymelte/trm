@@ -8,7 +8,9 @@ Windows-1252/Latin-1 zurück.
 > beschriebenen Schlüssel/Wert-Format. Binäre TRM-Dateien mit NUL-Bytes oder
 > proprietären Strukturen können nicht automatisch in JSON umgewandelt werden;
 > in solchen Fällen beendet sich die CLI mit einer klaren Fehlermeldung ohne
-> Python-Traceback.
+> Python-Traceback. Falls Sie es trotzdem versuchen möchten, können Sie mit
+> `--allow-binary` NUL-Bytes entfernen lassen und die Konvertierung erneut
+> versuchen (Ergebnis ohne Gewähr).
 
 ## TRM-Format
 
@@ -23,6 +25,9 @@ Das JSON-Ergebnis ist ein flaches Objekt mit Schlüssel-Wert-Paaren als Strings.
 ```bash
 # TRM nach JSON konvertieren
 python trm_converter.py to-json eingabe.trm ausgabe.json
+
+# Optional: NUL-Bytes vor dem Parsen entfernen
+python trm_converter.py to-json --allow-binary eingabe.trm ausgabe.json
 
 # JSON zurück nach TRM
 python trm_converter.py to-trm eingabe.json ausgabe.trm

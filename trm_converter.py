@@ -46,18 +46,22 @@ def _raise_if_binary(text: str) -> None:
     if "\x00" in text:
         raise ValueError(
             "TRM file appears to be binary (contains NUL bytes). "
-            "This tool only supports text-based 'key = value' TRM files."
+            "This tool only supports text-based 'key = value' TRM files. "
+            "If you want to try anyway, rerun with --allow-binary to strip NUL bytes first."
         )
 
 
-def parse_trm_text(text: str) -> Dict[str, str]:
+def parse_trm_text(text: str, *, allow_binary: bool = False) -> Dict[str, str]:
     """Parse TRM content into a dictionary.
 
     Raises:
         ValueError: if a data line does not contain an equals sign.
     """
 
-    _raise_if_binary(text)
+    if allow_binary:
+        text = text.replace("\x00", "")
+    else:
+        _raise_if_binary(text)
 
     data: Dict[str, str] = {}
     for line_no, raw_line in enumerate(text.splitlines(), start=1):
@@ -78,8 +82,8 @@ def trm_from_mapping(mapping: Dict[str, str]) -> str:
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-def trm_file_to_json(trm_path: Path) -> Dict[str, str]:
-    return parse_trm_text(read_text_with_fallback(trm_path))
+def trm_file_to_json(trm_path: Path, *, allow_binary: bool = False) -> Dict[str, str]:
+    return parse_trm_text(read_text_with_fallback(trm_path), allow_binary=allow_binary)
 
 
 def json_file_to_trm(json_path: Path) -> Dict[str, str]:
@@ -104,6 +108,11 @@ def build_parser() -> argparse.ArgumentParser:
     to_json = subparsers.add_parser("to-json", help="Convert TRM file to JSON.")
     to_json.add_argument("input", type=Path, help="Path to the source TRM file.")
     to_json.add_argument("output", type=Path, help="Path to write the JSON output.")
+    to_json.add_argument(
+        "--allow-binary",
+        action="store_true",
+        help="Strip NUL bytes before parsing to attempt conversion of semi-binary files.",
+    )
 
     to_trm = subparsers.add_parser("to-trm", help="Convert JSON file to TRM.")
     to_trm.add_argument("input", type=Path, help="Path to the source JSON file.")
@@ -118,7 +127,7 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         if args.command == "to-json":
-            data = trm_file_to_json(args.input)
+            data = trm_file_to_json(args.input, allow_binary=args.allow_binary)
             write_json(data, args.output)
         elif args.command == "to-trm":
             data = json_file_to_trm(args.input)
