@@ -1,51 +1,68 @@
 # TRM Converter
 
-Dieses kleine Werkzeug wandelt einfache TRM-Dateien in JSON um und wieder zurück. Es
-versucht TRM-Dateien zuerst als UTF-8 zu lesen und fällt bei Bedarf automatisch auf
-Windows-1252/Latin-1 zurück.
+Dieses Werkzeug liest das Little-Endian TRM-Format mit festen 6692-Byte-Records
+pro Eintrag und wandelt es in ein bearbeitbares JSON um. Beim Rückweg wird aus
+dem JSON wieder eine gültige Binär-TRM erzeugt, wobei unbekannte Bytes dank des
+`raw_entry_base64`-Feldes unverändert erhalten bleiben.
 
-> Hinweis: Das Tool unterstützt nur textbasierte TRM-Dateien nach dem unten
-> beschriebenen Schlüssel/Wert-Format. Binäre TRM-Dateien mit NUL-Bytes oder
-> proprietären Strukturen können nicht automatisch in JSON umgewandelt werden;
-> in solchen Fällen beendet sich die CLI mit einer klaren Fehlermeldung ohne
-> Python-Traceback. Falls Sie es trotzdem versuchen möchten, können Sie mit
-> `--allow-binary` NUL-Bytes entfernen lassen. Wenn das Ergebnis danach noch
-> immer nicht als Text geparst werden kann, wird die Datei stattdessen roh
-> als Base64 (`__raw_binary_base64`) in JSON verpackt. Zusätzlich wird ein
-> `__printable_preview` mit eingebetteten Klartext-Fragmenten erzeugt, damit
-> Sie z. B. im Hexmix Zeichenketten wie Levelnamen oder Pfade sehen und
-> gezielt in einem externen Tool bearbeiten können. Über denselben
-> `__raw_binary_base64`-Schlüssel lässt sich die Binärdatei unverändert
-> wiederherstellen.
+## Binärformat – Überblick
+- Offset `0x00`: `entry_count` (u32, LE)
+- Danach `entry_count` Einträge à 6692 Bytes
+- Footer: 8 × float32 (32 Bytes)
 
-## TRM-Format
+### Entry-Felder
+- `name`: `char[32]` (nullterminiert)
+- Header ab `0x20` als 10 × u32
+  - `difficulty`, `time_flag`, `stage_index`, `group`, `flags`, `value`,
+    `count`, `pass_value`, `rate_u32`, `zero_unused`
+  - `rate` wird zusätzlich als float aus `rate_u32` bereitgestellt
+- Position ab `0x54`: 3 × float32 (`x`, `y`, `z`)
+- Rest des Records: wird als Base64 (`raw_entry_base64`) gespeichert, damit der
+  Roundtrip verlustfrei bleibt
 
-* Jede Datenzeile enthält `key = value`.
-* Kommentare beginnen mit `#` und werden ignoriert.
-* Leerzeilen werden ignoriert.
-
-Das JSON-Ergebnis ist ein flaches Objekt mit Schlüssel-Wert-Paaren als Strings.
-
-## Verwendung
-
-```bash
-# TRM nach JSON konvertieren
-python trm_converter.py to-json eingabe.trm ausgabe.json
-
-# Optional: NUL-Bytes vor dem Parsen entfernen
-python trm_converter.py to-json --allow-binary eingabe.trm ausgabe.json
-
-# Falls die Datei nicht textbasiert ist, enthält `ausgabe.json` mindestens
-# `{"__raw_binary_base64": "..."}` und optional einen `__printable_preview`.
-# Sie können die Datei über `to-trm` wieder in die ursprüngliche Binärdatei
-# zurückführen.
-
-# JSON zurück nach TRM
-python trm_converter.py to-trm eingabe.json ausgabe.trm
+### JSON-Struktur
+```jsonc
+{
+  "entry_count": 30,
+  "entries": [
+    {
+      "name": "Easy/S01/SABO",
+      "difficulty": 0,
+      "time_flag": 0,
+      "stage_index": 0,
+      "group": 2,
+      "flags": 1,
+      "value": 700,
+      "count": 5,
+      "pass_value": 100,
+      "rate": 0.05,
+      "zero_unused": 0,
+      "position": {"x": 1.0, "y": 2.0, "z": 3.0},
+      "raw_entry_base64": "..." // kompletter 6692-Byte-Record
+    }
+  ],
+  "footer": {"floats": [f0, f1, f2, f3, f4, f5, f6, f7]}
+}
 ```
 
-## Tests
+Bearbeiten Sie gewünschte Felder (z. B. `count`, `pass_value`, `rate`,
+`position`) und lassen Sie `raw_entry_base64` unverändert, damit unbekannte
+Bytes erhalten bleiben. Falls Sie neue Einträge anlegen, können Sie das Feld
+weglassen; der Converter füllt fehlende Bytes mit Nullen.
 
+## Verwendung
+```bash
+# TRM → JSON (binär zu editierbaren Feldern aufschlüsseln)
+python trm_converter.py to-json training.trm ausgabe.json
+
+# JSON → TRM (mit den angepassten Werten zurückschreiben)
+python trm_converter.py to-trm ausgabe.json neues_training.trm
+```
+
+Die CLI versucht immer zuerst das binäre Layout zu parsen und fällt nur dann auf
+legacy Text-TRM-Dateien zurück, wenn die Binärstruktur nicht passt.
+
+## Tests
 ```bash
 python -m pytest
 ```
