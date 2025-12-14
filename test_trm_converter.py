@@ -12,6 +12,13 @@ from trm_converter import (
 )
 
 
+if __name__ == "__main__":
+    raise SystemExit(
+        "Dieses Skript enthält nur Tests. Bitte mit 'python -m pytest' ausführen "
+        "oder für Konvertierungen 'python trm_converter.py' verwenden."
+    )
+
+
 def test_parse_trm_text_with_comments_and_blank_lines(tmp_path: Path):
     content = """
 # example trm file
@@ -71,3 +78,13 @@ def test_trm_reading_with_encoding_fallback(tmp_path: Path):
 
     # helper is exposed for completeness
     assert read_text_with_fallback(trm_path).startswith("name = Café")
+
+
+def test_binary_file_gives_clear_error(tmp_path: Path):
+    # A binary-looking payload containing NUL bytes should raise a clear message
+    binary_bytes = b"\x00\x00\x00Easy/S01/SABO\x00\x00\x00"
+    trm_path = tmp_path / "binary.trm"
+    trm_path.write_bytes(binary_bytes)
+
+    with pytest.raises(ValueError, match="binary"):
+        trm_file_to_json(trm_path)

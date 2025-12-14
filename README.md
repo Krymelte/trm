@@ -4,6 +4,10 @@ Dieses kleine Werkzeug wandelt einfache TRM-Dateien in JSON um und wieder zurüc
 versucht TRM-Dateien zuerst als UTF-8 zu lesen und fällt bei Bedarf automatisch auf
 Windows-1252/Latin-1 zurück.
 
+> Hinweis: Das Tool unterstützt nur textbasierte TRM-Dateien nach dem unten
+> beschriebenen Schlüssel/Wert-Format. Binäre TRM-Dateien mit NUL-Bytes oder
+> proprietären Strukturen können nicht automatisch in JSON umgewandelt werden.
+
 ## TRM-Format
 
 * Jede Datenzeile enthält `key = value`.

@@ -34,12 +34,29 @@ def read_text_with_fallback(path: Path, encodings: tuple[str, ...] = ("utf-8", "
     raise UnicodeDecodeError("unknown", b"", 0, 1, "no encodings provided")
 
 
+def _raise_if_binary(text: str) -> None:
+    """Raise a helpful error if the text looks binary.
+
+    The converter only supports the documented text-based TRM format. Files that
+    contain NUL bytes or other binary data cannot be parsed and would otherwise
+    surface confusing "missing '='" errors.
+    """
+
+    if "\x00" in text:
+        raise ValueError(
+            "TRM file appears to be binary (contains NUL bytes). "
+            "This tool only supports text-based 'key = value' TRM files."
+        )
+
+
 def parse_trm_text(text: str) -> Dict[str, str]:
     """Parse TRM content into a dictionary.
 
     Raises:
         ValueError: if a data line does not contain an equals sign.
     """
+
+    _raise_if_binary(text)
 
     data: Dict[str, str] = {}
     for line_no, raw_line in enumerate(text.splitlines(), start=1):
