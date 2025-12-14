@@ -1,3 +1,4 @@
+import base64
 import json
 from pathlib import Path
 
@@ -113,3 +114,45 @@ def test_cli_exits_cleanly_on_binary_file(tmp_path: Path, capsys: pytest.Capture
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "allow-binary" in captured.err
+
+
+def test_allow_binary_base64_passthrough_when_not_parseable(tmp_path: Path):
+    binary_bytes = b"\x00\x00\x00Easy/S01/SABO\x00\x02\x01\xbc\x02\x06d"
+    trm_path = tmp_path / "training.trm"
+    trm_path.write_bytes(binary_bytes)
+
+    parsed = trm_file_to_json(trm_path, allow_binary=True)
+    assert parsed.keys() == {"__raw_binary_base64"}
+    assert base64.b64decode(parsed["__raw_binary_base64"]) == binary_bytes
+
+    json_path = tmp_path / "payload.json"
+    json_path.write_text(json.dumps(parsed), encoding="utf-8")
+
+    back = json_file_to_trm(json_path)
+    assert isinstance(back, bytes)
+    assert back == binary_bytes
+
+
+def test_cli_to_json_produces_base64_for_binary(tmp_path: Path):
+    binary_bytes = b"\x00BIN\x01\x02\x03"
+    trm_path = tmp_path / "binary.trm"
+    trm_path.write_bytes(binary_bytes)
+    out_path = tmp_path / "out.json"
+
+    main(["to-json", "--allow-binary", str(trm_path), str(out_path)])
+
+    content = json.loads(out_path.read_text(encoding="utf-8"))
+    assert content.keys() == {"__raw_binary_base64"}
+    assert base64.b64decode(content["__raw_binary_base64"]) == binary_bytes
+
+
+def test_cli_to_trm_writes_binary_payload(tmp_path: Path):
+    original = b"\x00\x01\x02\x03binary trm\x00\n"
+    payload = {"__raw_binary_base64": base64.b64encode(original).decode("ascii")}
+    json_path = tmp_path / "payload.json"
+    json_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    out_path = tmp_path / "restored.trm"
+    main(["to-trm", str(json_path), str(out_path)])
+
+    assert out_path.read_bytes() == original

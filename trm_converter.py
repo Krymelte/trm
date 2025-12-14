@@ -11,28 +11,33 @@ The JSON representation is a flat object mapping keys to string values.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sys
 from pathlib import Path
 from typing import Dict
 
 
-def read_text_with_fallback(path: Path, encodings: tuple[str, ...] = ("utf-8", "cp1252", "latin-1")) -> str:
-    """Read text trying several encodings.
-
-    Tries each encoding in order and returns the first successful decode. Raises
-    the last UnicodeDecodeError if all attempts fail.
-    """
+def _decode_bytes_with_fallback(data: bytes, encodings: tuple[str, ...]) -> str:
+    """Decode bytes using several encodings in order."""
 
     last_error: UnicodeDecodeError | None = None
     for encoding in encodings:
         try:
-            return path.read_text(encoding=encoding)
+            return data.decode(encoding)
         except UnicodeDecodeError as exc:  # pragma: no cover - exercised via fallback success
             last_error = exc
     if last_error:
         raise last_error
     raise UnicodeDecodeError("unknown", b"", 0, 1, "no encodings provided")
+
+
+def read_text_with_fallback(
+    path: Path, encodings: tuple[str, ...] = ("utf-8", "cp1252", "latin-1")
+) -> str:
+    """Read text trying several encodings."""
+
+    return _decode_bytes_with_fallback(path.read_bytes(), encodings)
 
 
 def _raise_if_binary(text: str) -> None:
@@ -75,6 +80,12 @@ def parse_trm_text(text: str, *, allow_binary: bool = False) -> Dict[str, str]:
     return data
 
 
+def _binary_to_base64_dict(raw_bytes: bytes) -> Dict[str, str]:
+    """Wrap binary data in a JSON-friendly mapping."""
+
+    return {"__raw_binary_base64": base64.b64encode(raw_bytes).decode("ascii")}
+
+
 def trm_from_mapping(mapping: Dict[str, str]) -> str:
     """Serialize mapping into TRM text."""
 
@@ -83,13 +94,34 @@ def trm_from_mapping(mapping: Dict[str, str]) -> str:
 
 
 def trm_file_to_json(trm_path: Path, *, allow_binary: bool = False) -> Dict[str, str]:
-    return parse_trm_text(read_text_with_fallback(trm_path), allow_binary=allow_binary)
+    if not allow_binary:
+        return parse_trm_text(read_text_with_fallback(trm_path), allow_binary=False)
+
+    raw_bytes = trm_path.read_bytes()
+    try:
+        text = _decode_bytes_with_fallback(raw_bytes, ("utf-8", "cp1252", "latin-1"))
+    except UnicodeDecodeError:
+        return _binary_to_base64_dict(raw_bytes)
+
+    try:
+        return parse_trm_text(text, allow_binary=True)
+    except ValueError:
+        return _binary_to_base64_dict(raw_bytes)
 
 
-def json_file_to_trm(json_path: Path) -> Dict[str, str]:
+def json_file_to_trm(json_path: Path) -> Dict[str, str] | bytes:
     data = json.loads(json_path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError("JSON root must be an object mapping keys to values")
+
+    if "__raw_binary_base64" in data:
+        if len(data) != 1:
+            raise ValueError("Binary JSON payload must only contain '__raw_binary_base64'")
+        try:
+            return base64.b64decode(data["__raw_binary_base64"], validate=True)
+        except (ValueError, TypeError) as exc:
+            raise ValueError("Invalid base64 data for '__raw_binary_base64'") from exc
+
     return {str(key): str(value) for key, value in data.items()}
 
 
@@ -131,7 +163,10 @@ def main(argv: list[str] | None = None) -> None:
             write_json(data, args.output)
         elif args.command == "to-trm":
             data = json_file_to_trm(args.input)
-            write_trm(data, args.output)
+            if isinstance(data, bytes):
+                args.output.write_bytes(data)
+            else:
+                write_trm(data, args.output)
         else:  # pragma: no cover - argparse enforces allowed commands
             parser.error("Unknown command")
     except (UnicodeDecodeError, OSError, ValueError) as exc:
